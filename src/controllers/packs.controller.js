@@ -41,7 +41,7 @@ export async function listOrphanPacks(req, res) {
 // PUT /api/packs/:id
 export async function updatePack(req, res) {
   try {
-    const { qr_code, orig, seq_pack, lastpack, pospallet, robot_num } = req.body || {};
+    const { qr_code, seq_pallet, orig, seq_pack, lastpack, pospallet, robot_num } = req.body || {};
 
     const sets = [];
     const params = [];
@@ -52,6 +52,13 @@ export async function updatePack(req, res) {
       sets.push(`qr_code = $${i++}`);
       params.push(qr_code ?? null);
     }
+
+    if ('seq_pallet' in req.body) {
+      sets.push(`seq_pallet = $${i++}`);
+      params.push(seq_pallet ?? null);
+    }
+
+
 
     // orig (aceita null; valida inteiro quando não-null)
     if ('orig' in req.body) {
@@ -110,7 +117,7 @@ export async function updatePack(req, res) {
       UPDATE pack SET
         ${sets.join(',\n        ')}
       WHERE id = $${i}
-      RETURNING id, created_at, updated_at, qr_code, orig, seq_pallet, seq_pack, lastpack, pospallet, robot_num
+      RETURNING id, created_at, updated_at, qr_code, seq_pallet, orig, seq_pallet, seq_pack, lastpack, pospallet, robot_num
     `;
     params.push(req.params.id);
 
@@ -132,5 +139,63 @@ export async function deletePack(req, res) {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to delete pack' });
+  }
+}
+
+/**
+ * GET /api/packs/overview
+ * Lista a view public.vw_pack_overview com paginação e busca.
+ * ?limit=20&offset=0&search=texto
+ */
+export async function listPackOverview(req, res) {
+  try {
+    const limit = clamp(parseInt(req.query.limit) || 20, 1, 200);
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+    const search = (req.query.search || '').trim();
+
+    const params = [];
+    const where = [];
+
+    if (search) {
+      params.push(`%${search}%`);
+      // busca por QR do pack, QR do pallet OU OT (4 últimos)
+      where.push(`(idea_ean ILIKE $${params.length} OR iden_pallet ILIKE $${params.length} OR ot ILIKE $${params.length})`);
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const countSql = `SELECT COUNT(*)::int AS total FROM public.vw_pack_overview ${whereSql}`;
+
+    const dataSql = `
+      SELECT
+        fecha,
+        hora,
+        idea_ean,
+        origem_enfardadeira,
+        ot,
+        iden_robot,
+        iden_pallet,
+        palet_completo,
+        destino_muelle
+      FROM public.vw_pack_overview
+      ${whereSql}
+      ORDER BY fecha DESC, hora DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+
+    const [countRes, dataRes] = await Promise.all([
+      query(countSql, params),
+      query(dataSql, [...params, limit, offset]),
+    ]);
+
+    res.json({
+      items: dataRes.rows,
+      total: countRes.rows[0].total,
+      limit,
+      offset,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to list pack overview' });
   }
 }
