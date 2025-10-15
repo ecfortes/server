@@ -1,5 +1,6 @@
 import { query } from '../db.js';
 import { clamp, toInt, toNum, toBool } from '../utils/parse.js';
+import { badRequest } from '../utils/http.js';
 
 // GET /api/packs/orphans
 // ---------- Packs órfãos (seq_pallet IS NULL) ----------
@@ -35,6 +36,72 @@ export async function listOrphanPacks(req, res) {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to list orphan packs' });
+  }
+}
+
+// POST /api/packs/orphans
+export async function createOrphanPack(req, res) {
+  try {
+    const body = req.body || {};
+    const { qr_code, orig, seq_pack, lastpack, pospallet, robot_num } = body;
+
+    const _seqPack = toNum(seq_pack);
+    if (_seqPack === null) {
+      return badRequest(res, 'seq_pack must be numeric');
+    }
+
+    let _orig = null;
+    if ('orig' in body) {
+      if (orig !== null) {
+        _orig = toInt(orig);
+        if (_orig === null) {
+          return badRequest(res, 'orig must be integer or null');
+        }
+      }
+    }
+
+    const _lastpack = toBool(lastpack);
+
+    let _pospallet = null;
+    if ('pospallet' in body) {
+      if (pospallet !== null) {
+        _pospallet = toInt(pospallet);
+        if (_pospallet === null) {
+          return badRequest(res, 'pospallet must be integer or null');
+        }
+      }
+    }
+
+    let _robotNum = null;
+    if ('robot_num' in body) {
+      if (robot_num !== null) {
+        _robotNum = toInt(robot_num);
+        if (_robotNum === null) {
+          return badRequest(res, 'robot_num must be integer or null');
+        }
+      }
+    }
+
+    const insertSql = `
+      INSERT INTO pack (qr_code, orig, seq_pallet, seq_pack, lastpack, pospallet, robot_num)
+      VALUES ($1, $2, NULL, $3, $4, $5, $6)
+      RETURNING id, created_at, updated_at, qr_code, orig, seq_pallet, seq_pack, lastpack, pospallet, robot_num
+    `;
+
+    const params = [
+      qr_code ?? null,
+      _orig,
+      _seqPack,
+      _lastpack,
+      _pospallet,
+      _robotNum,
+    ];
+
+    const { rows } = await query(insertSql, params);
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create orphan pack' });
   }
 }
 

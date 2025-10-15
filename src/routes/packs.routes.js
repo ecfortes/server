@@ -3,16 +3,18 @@ import {
     updatePack,
     deletePack,
     listOrphanPacks,
-    listPackOverview, // ⬅️ importe a função
+    listPackOverview,
+    createOrphanPack,
 } from '../controllers/packs.controller.js';
 
 const router = Router();
 
-// Rotas específicas primeiro (evita colisão com '/:id')
+// Specific routes first (avoid collision with '/:id')
 router.get('/overview', listPackOverview);  // GET /api/packs/overview
 router.get('/orphans', listOrphanPacks);    // GET /api/packs/orphans
+router.post('/orphans', createOrphanPack);  // POST /api/packs/orphans
 
-// Rotas com parâmetro por último
+// Parameter routes last
 router.put('/:id', updatePack);             // PUT /api/packs/:id
 router.delete('/:id', deletePack);          // DELETE /api/packs/:id
 
