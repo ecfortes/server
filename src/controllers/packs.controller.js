@@ -3,7 +3,7 @@ import { clamp, toInt, toNum, toBool } from '../utils/parse.js';
 import { badRequest } from '../utils/http.js';
 
 // GET /api/packs/orphans
-// ---------- Packs órfãos (seq_pallet IS NULL) ----------
+// ---------- Packs órfãos (seq_pallet IS NULL) ---------
 
 export async function listOrphanPacks(req, res) {
   try {
@@ -84,7 +84,14 @@ export async function createOrphanPack(req, res) {
 
     const insertSql = `
       INSERT INTO pack (qr_code, orig, seq_pallet, seq_pack, lastpack, pospallet, robot_num)
-      VALUES ($1, $2, NULL, $3, $4, $5, $6)
+      VALUES (
+        $1,
+        COALESCE(
+          $2,
+          NULLIF(LEFT(regexp_replace($1, '\\D', '', 'g'), 2), '')::int
+        ),
+        NULL, $3, $4, $5, $6
+      )
       RETURNING id, created_at, updated_at, qr_code, orig, seq_pallet, seq_pack, lastpack, pospallet, robot_num
     `;
 
