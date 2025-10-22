@@ -1,22 +1,25 @@
-import 'dotenv/config'; // carrega variáveis de ambiente definidas no .env
-import express from 'express';
-import cors from 'cors';
-import morgan from 'morgan';
-import apiRouter from './routes/index.js';
+// src/app.js (CommonJS)
+require('dotenv').config();              // carrega .env
+const express = require('express');
+const cors = require('cors');
+const morgan = require('morgan');
 
-const app = express(); // instancia principal do servidor Express
+// Se o seu router atual está em src/routes/index.js em CommonJS:
+const apiRouter = require('./routes');   // o Node resolve ./routes/index.js
+
+const app = express();
 
 // Middlewares globais
-app.use(express.json()); // interpreta corpos JSON das requisições
-app.use(morgan('dev')); // exibe logs HTTP no formato "dev"
+app.use(express.json());
+app.use(morgan('dev'));
 app.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN?.split(',') || '*', // define origens permitidas via variável de ambiente
-    credentials: true, // habilita envio de cookies/cabecalhos de autenticação
+    origin: (process.env.CLIENT_ORIGIN || '*').split(','), // suporta lista separada por vírgula
+    credentials: true,
   })
 );
 
 // Rotas da API
-app.use('/api', apiRouter); // delega todas as rotas /api para o router principal
+app.use('/api', apiRouter);
 
-export default app;
+module.exports = app; // CommonJS export

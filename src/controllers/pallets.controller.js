@@ -1,14 +1,20 @@
-import { query, getClient } from '../db.js';
-import { clamp, toInt, toNum, toBool } from '../utils/parse.js';
-import { badRequest } from '../utils/http.js';
+// src/controllers/pallets.controller.js (CommonJS)
+const { query, getClient } = require('../db'); // ajuste o caminho p/ seu módulo (ex.: '../db/pg')
+const { clamp, toInt, toNum, toBool } = require('../utils/parse');
+const { badRequest } = require('../utils/http');
+
+// colunas permitidas para ORDER BY
+const PALLETS_ORDERABLE = new Set(['id', 'created_at', 'updated_at', 'qr_code', 'completed', 'num_doca', 'seq_pallet', 'station']);
 
 // GET /api/pallets
-export async function listPallets(req, res) {
+async function listPallets(req, res) {
   try {
     const limit = clamp(parseInt(req.query.limit) || 20, 1, 100);
     const offset = Math.max(parseInt(req.query.offset) || 0, 0);
     const search = (req.query.search || '').trim();
-    const order = (req.query.order || 'updated_at').toLowerCase()
+
+    const orderReq = String(req.query.order || 'updated_at').toLowerCase();
+    const orderCol = PALLETS_ORDERABLE.has(orderReq) ? orderReq : 'updated_at';
 
     const params = [];
     let where = '';
@@ -22,7 +28,7 @@ export async function listPallets(req, res) {
       SELECT id, created_at, updated_at, qr_code, completed, num_doca, seq_pallet, station
       FROM pallets
       ${where}
-      ORDER BY ${order} DESC
+      ORDER BY ${orderCol} DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `;
 
@@ -31,7 +37,7 @@ export async function listPallets(req, res) {
       query(dataSql, [...params, limit, offset]),
     ]);
 
-    res.json({ items: rows, total: countRows[0].total, limit, offset });
+    res.json({ items: rows, total: countRows[0].total, limit, offset, order: orderCol });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to list pallets' });
@@ -39,7 +45,7 @@ export async function listPallets(req, res) {
 }
 
 // GET /api/pallets/:id
-export async function getPallet(req, res) {
+async function getPallet(req, res) {
   try {
     const { rows } = await query(
       `SELECT id, created_at, updated_at, qr_code, completed, num_doca, seq_pallet, station
@@ -55,7 +61,7 @@ export async function getPallet(req, res) {
 }
 
 // POST /api/pallets
-export async function createPallet(req, res) {
+async function createPallet(req, res) {
   try {
     const { qr_code, completed, num_doca, seq_pallet, station } = req.body || {};
 
@@ -84,7 +90,7 @@ export async function createPallet(req, res) {
 }
 
 // PUT /api/pallets/:id
-export async function updatePallet(req, res) {
+async function updatePallet(req, res) {
   try {
     const { qr_code, completed, num_doca, seq_pallet, station } = req.body || {};
 
@@ -92,19 +98,16 @@ export async function updatePallet(req, res) {
     const params = [];
     let i = 1;
 
-    // qr_code (aceita null)
     if ('qr_code' in req.body) {
       sets.push(`qr_code = $${i++}`);
       params.push(qr_code ?? null);
     }
 
-    // completed (aceita null)
     if ('completed' in req.body) {
       sets.push(`completed = $${i++}`);
-      params.push(toBool(completed)); // toBool(null) => null
+      params.push(toBool(completed));
     }
 
-    // num_doca (aceita null; valida inteiro quando não-null)
     if ('num_doca' in req.body) {
       const raw = num_doca;
       const val = raw === null ? null : toInt(raw);
@@ -115,7 +118,6 @@ export async function updatePallet(req, res) {
       params.push(val);
     }
 
-    // seq_pallet (aceita null; valida numérico quando não-null)
     if ('seq_pallet' in req.body) {
       const raw = seq_pallet;
       const val = raw === null ? null : toNum(raw);
@@ -126,7 +128,6 @@ export async function updatePallet(req, res) {
       params.push(val);
     }
 
-    // station (aceita null; valida inteiro quando não-null)
     if ('station' in req.body) {
       const raw = station;
       const val = raw === null ? null : toInt(raw);
@@ -137,7 +138,7 @@ export async function updatePallet(req, res) {
       params.push(val);
     }
 
-    // Sempre atualiza updated_at
+    // sempre atualiza updated_at
     sets.push(`updated_at = NOW()`);
 
     const sql = `
@@ -154,16 +155,14 @@ export async function updatePallet(req, res) {
   } catch (err) {
     console.error(err);
     if (err?.code === '23505') {
-      // unique(seq_pallet)
       return badRequest(res, 'seq_pallet must be unique');
     }
     res.status(500).json({ error: 'Failed to update pallet' });
   }
 }
 
-
 // DELETE /api/pallets/:id
-export async function deletePallet(req, res) {
+async function deletePallet(req, res) {
   const client = await getClient();
   try {
     await client.query('BEGIN');
@@ -195,7 +194,7 @@ export async function deletePallet(req, res) {
 }
 
 // GET /api/pallets/:id/packs
-export async function listPacksByPallet(req, res) {
+async function listPacksByPallet(req, res) {
   try {
     const limit = clamp(parseInt(req.query.limit) || 20, 1, 200);
     const offset = Math.max(parseInt(req.query.offset) || 0, 0);
@@ -228,7 +227,7 @@ export async function listPacksByPallet(req, res) {
 }
 
 // POST /api/pallets/:id/packs
-export async function createPackInPallet(req, res) {
+async function createPackInPallet(req, res) {
   try {
     const palletId = req.params.id;
 
@@ -242,14 +241,14 @@ export async function createPackInPallet(req, res) {
     const _orig = toInt(orig);
     const _seq_pack = toNum(seq_pack);
     const _lastpack = toBool(lastpack);
-    const _station = toInt(pospallet);
+    const _pospallet = toInt(pospallet);
     const _robot_num = toInt(robot_num);
 
     const { rows } = await query(
       `INSERT INTO pack (qr_code, orig, seq_pallet, seq_pack, lastpack, pospallet, robot_num)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, created_at, updated_at, qr_code, orig, seq_pallet, seq_pack, lastpack, pospallet, robot_num`,
-      [qr_code ?? null, _orig, seq_pallet, _seq_pack, _lastpack, _station, _robot_num]
+      [qr_code ?? null, _orig, seq_pallet, _seq_pack, _lastpack, _pospallet, _robot_num]
     );
 
     res.status(201).json(rows[0]);
@@ -258,3 +257,13 @@ export async function createPackInPallet(req, res) {
     res.status(500).json({ error: 'Failed to create pack' });
   }
 }
+
+module.exports = {
+  listPallets,
+  getPallet,
+  createPallet,
+  updatePallet,
+  deletePallet,
+  listPacksByPallet,
+  createPackInPallet,
+};

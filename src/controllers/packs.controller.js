@@ -1,11 +1,12 @@
-import { query } from '../db.js';
-import { clamp, toInt, toNum, toBool } from '../utils/parse.js';
-import { badRequest } from '../utils/http.js';
+// src/controllers/packs.controller.js (CommonJS)
+const { query } = require('../db'); // ajuste para '../db/pg' se for o seu módulo
+const { clamp, toInt, toNum, toBool } = require('../utils/parse');
+const { badRequest } = require('../utils/http');
 
-// GET /api/packs/orphans
 // ---------- Packs órfãos (seq_pallet IS NULL) ---------
 
-export async function listOrphanPacks(req, res) {
+// GET /api/packs/orphans
+async function listOrphanPacks(req, res) {
   try {
     const limit = clamp(parseInt(req.query.limit) || 20, 1, 200);
     const offset = Math.max(parseInt(req.query.offset) || 0, 0);
@@ -40,7 +41,7 @@ export async function listOrphanPacks(req, res) {
 }
 
 // POST /api/packs/orphans
-export async function createOrphanPack(req, res) {
+async function createOrphanPack(req, res) {
   try {
     const body = req.body || {};
     const { qr_code, orig, seq_pack, lastpack, pospallet, robot_num } = body;
@@ -113,7 +114,7 @@ export async function createOrphanPack(req, res) {
 }
 
 // PUT /api/packs/:id
-export async function updatePack(req, res) {
+async function updatePack(req, res) {
   try {
     const { qr_code, seq_pallet, orig, seq_pack, lastpack, pospallet, robot_num } = req.body || {};
 
@@ -127,12 +128,16 @@ export async function updatePack(req, res) {
       params.push(qr_code ?? null);
     }
 
+    // seq_pallet (aceita null; valida numérico quando não-null)
     if ('seq_pallet' in req.body) {
+      const raw = seq_pallet;
+      const val = raw === null ? null : toNum(raw);
+      if (raw !== null && val === null) {
+        return badRequest(res, 'seq_pallet must be numeric or null');
+      }
       sets.push(`seq_pallet = $${i++}`);
-      params.push(seq_pallet ?? null);
+      params.push(val);
     }
-
-
 
     // orig (aceita null; valida inteiro quando não-null)
     if ('orig' in req.body) {
@@ -191,7 +196,7 @@ export async function updatePack(req, res) {
       UPDATE pack SET
         ${sets.join(',\n        ')}
       WHERE id = $${i}
-      RETURNING id, created_at, updated_at, qr_code, seq_pallet, orig, seq_pallet, seq_pack, lastpack, pospallet, robot_num
+      RETURNING id, created_at, updated_at, qr_code, seq_pallet, orig, seq_pack, lastpack, pospallet, robot_num
     `;
     params.push(req.params.id);
 
@@ -205,7 +210,7 @@ export async function updatePack(req, res) {
 }
 
 // DELETE /api/packs/:id
-export async function deletePack(req, res) {
+async function deletePack(req, res) {
   try {
     const { rowCount } = await query('DELETE FROM pack WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Pack not found' });
@@ -221,7 +226,7 @@ export async function deletePack(req, res) {
  * Lista a view public.vw_pack_overview com paginação e busca.
  * ?limit=20&offset=0&search=texto
  */
-export async function listPackOverview(req, res) {
+async function listPackOverview(req, res) {
   try {
     const limit = clamp(parseInt(req.query.limit) || 20, 1, 200);
     const offset = Math.max(parseInt(req.query.offset) || 0, 0);
@@ -232,7 +237,7 @@ export async function listPackOverview(req, res) {
 
     if (search) {
       params.push(`%${search}%`);
-      // busca por QR do pack, QR do pallet OU OT (4 últimos)
+      // busca por QR do pack, QR do pallet OU OT (mesmo índice de parâmetro para os 3 ILIKE)
       where.push(`(idea_ean ILIKE $${params.length} OR iden_pallet ILIKE $${params.length} OR ot ILIKE $${params.length})`);
     }
 
@@ -273,3 +278,11 @@ export async function listPackOverview(req, res) {
     res.status(500).json({ error: 'Failed to list pack overview' });
   }
 }
+
+module.exports = {
+  updatePack,
+  deletePack,
+  listOrphanPacks,
+  listPackOverview,
+  createOrphanPack,
+};

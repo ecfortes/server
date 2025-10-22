@@ -1,5 +1,6 @@
-import { Router } from 'express';
-import {
+// src/routes/pallets.routes.js
+const { Router } = require('express');
+const {
   listPallets,
   getPallet,
   createPallet,
@@ -7,7 +8,7 @@ import {
   deletePallet,
   listPacksByPallet,
   createPackInPallet,
-} from '../controllers/pallets.controller.js';
+} = require('../controllers/pallets.controller');
 
 const router = Router();
 
@@ -22,4 +23,4 @@ router.delete('/:id', deletePallet);
 router.get('/:id/packs', listPacksByPallet);
 router.post('/:id/packs', createPackInPallet);
 
-export default router;
+module.exports = router;

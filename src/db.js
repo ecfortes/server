@@ -1,17 +1,35 @@
-import pg from 'pg';
-import pc from 'picocolors';
-import { highlight } from 'cli-highlight';
+// src/db/pg.js (CommonJS)
+require('dotenv').config(); // carrega .env do diretório atual do processo
 
-const { Pool } = pg;
+const { Pool } = require('pg');
+const pc = require('picocolors');
+const { highlight } = require('cli-highlight');
 
-// Pool gerencia as conexoes com o PostgreSQL a partir das configuracoes do ambiente
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  // ssl: { rejectUnauthorized: false }, // enable if needed
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-});
+// ---- Pool (usa libpq PG*; cai pra DATABASE_URL se existir) ----
+const sslmode = String(process.env.PGSSLMODE || '').toLowerCase();
+const useSSL = sslmode && sslmode !== 'disable';
+
+const pool =
+  process.env.DATABASE_URL
+    ? new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: useSSL ? { require: true, rejectUnauthorized: false } : undefined,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+      })
+    : new Pool({
+        host: process.env.PGHOST || 'localhost',
+        port: Number(process.env.PGPORT || 5432),
+        user: process.env.PGUSER || 'postgres',
+        password:
+          process.env.PGPASSWORD != null ? String(process.env.PGPASSWORD) : undefined,
+        database: process.env.PGDATABASE || 'postgres',
+        ssl: useSSL ? { require: true, rejectUnauthorized: false } : undefined,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+      });
 
 /** ---- Config de logging por ENV ----
  * SQL_LOG:    'true' para ligar (default: ligado fora de produção)
@@ -36,14 +54,12 @@ const sqlTheme = {
   type: pc.blue,
 };
 
-// Destaca visualmente o tempo de execucao da query
 function colorMs(ms) {
   if (ms >= 1000) return pc.bold(pc.bgRed(` ${ms} ms `));
   if (ms >= 300) return pc.bold(pc.yellow(`${ms} ms`));
   return pc.green(`${ms} ms`);
 }
 
-// Coloriza o verbo principal SQL (SELECT, INSERT, etc.)
 function verbColor(sql) {
   const v = (sql.match(/^\s*(\w+)/i)?.[1] || '').toUpperCase();
   if (v === 'SELECT') return pc.cyan(v);
@@ -53,7 +69,6 @@ function verbColor(sql) {
   return pc.white(v || 'SQL');
 }
 
-// Emite log detalhado da query quando habilitado via variaveis de ambiente
 function logSql({ text, params, duration, error }) {
   if (!SQL_LOG || duration < SQL_SLOW_MS) return;
 
@@ -63,8 +78,9 @@ function logSql({ text, params, duration, error }) {
     theme: sqlTheme,
   });
 
-  const hdr = `${pc.bold(pc.magenta('DB'))} ${colorMs(duration)} ${verbColor(text)}${error ? ' ' + pc.bgRed(pc.bold(' ERROR ')) : ''
-    }`;
+  const hdr =
+    `${pc.bold(pc.magenta('DB'))} ${colorMs(duration)} ${verbColor(text)}` +
+    (error ? ' ' + pc.bgRed(pc.bold(' ERROR ')) : '');
 
   console.log(hdr);
   console.log(coloredSql.trimEnd());
@@ -77,8 +93,8 @@ function logSql({ text, params, duration, error }) {
   console.log(pc.dim('-'.repeat(60)));
 }
 
-// Executa consultas padrao e registra a duracao/erro no log
-export async function query(text, params) {
+// -------- API pública (CommonJS) --------
+async function query(text, params) {
   const start = Date.now();
   let err;
   try {
@@ -93,7 +109,8 @@ export async function query(text, params) {
   }
 }
 
-// Fornece um client dedicado para transacoes manuais
-export async function getClient() {
-  return await pool.connect();
+async function getClient() {
+  return pool.connect();
 }
+
+module.exports = { query, getClient, pool };
