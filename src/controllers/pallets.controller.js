@@ -3,8 +3,6 @@ const { query, getClient } = require('../db'); // ajuste o caminho p/ seu módul
 const { clamp, toInt, toNum, toBool } = require('../utils/parse');
 const { badRequest } = require('../utils/http');
 
-// colunas permitidas para ORDER BY
-const PALLETS_ORDERABLE = new Set(['id', 'created_at', 'updated_at', 'qr_code', 'completed', 'num_doca', 'seq_pallet', 'station']);
 
 // GET /api/pallets
 async function listPallets(req, res) {
@@ -13,8 +11,7 @@ async function listPallets(req, res) {
     const offset = Math.max(parseInt(req.query.offset) || 0, 0);
     const search = (req.query.search || '').trim();
 
-    const orderReq = String(req.query.order || 'updated_at').toLowerCase();
-    const orderCol = PALLETS_ORDERABLE.has(orderReq) ? orderReq : 'updated_at';
+
 
     const params = [];
     let where = '';
@@ -28,7 +25,7 @@ async function listPallets(req, res) {
       SELECT id, created_at, updated_at, qr_code, completed, num_doca, seq_pallet, station
       FROM pallets
       ${where}
-      ORDER BY ${orderCol} DESC
+      ORDER BY created_at DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `;
 
@@ -37,7 +34,7 @@ async function listPallets(req, res) {
       query(dataSql, [...params, limit, offset]),
     ]);
 
-    res.json({ items: rows, total: countRows[0].total, limit, offset, order: orderCol });
+    res.json({ items: rows, total: countRows[0].total, limit, offset, order: 'created_at' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to list pallets' });
