@@ -4,7 +4,7 @@
   "type": "commonjs",
   "scripts": {
     "dev": "node src/server.js",
-    "start": "NODE_ENV=production node src/server.js"
+    "start": "cross-env NODE_ENV=production node src/server.js"
   },
   "dependencies": {
     "cli-highlight": "^2.1.11",
@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "dotenv": "^17.2.3",
+    "cross-env": "^7.0.3",
     "sequelize": "^6.37.7",
     "sequelize-cli": "^6.6.3"
   }
