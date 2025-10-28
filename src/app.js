@@ -12,12 +12,8 @@ const app = express();
 // Middlewares globais
 app.use(express.json());
 app.use(morgan('dev'));
-app.use(
-  cors({
-    origin: (process.env.CLIENT_ORIGIN || '*').split(','), // suporta lista separada por vírgula
-    credentials: true,
-  })
-);
+app.use(cors({ origin: '*', methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'] }));
+app.options('*', cors());
 
 // Rotas da API
 app.use('/api', apiRouter);

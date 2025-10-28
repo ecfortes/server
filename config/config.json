@@ -2,7 +2,7 @@
   "development": {
     "username": "zegla",
     "password": "zg1982",
-    "database": "zegla",
+    "database": "zegla_dev",
     "host": "127.0.0.1",
     "dialect": "postgres",
     "port": "35432"
@@ -15,10 +15,11 @@
     "dialect": "mysql"
   },
   "production": {
-    "username": "root",
-    "password": null,
-    "database": "database_production",
+    "username": "zegla",
+    "password": "zg1982",
+    "database": "zegla_production",
     "host": "127.0.0.1",
-    "dialect": "mysql"
+    "dialect": "postgres",
+    "port": "5432"
   }
 }
